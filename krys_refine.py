@@ -4,20 +4,19 @@ from snowflake.snowpark.types import FloatType, IntegerType
 from snowflake.snowpark.functions import col
 from snowflake.snowpark import Session
 
-
 # CONNECTION
 
 # Start your Snowpark session
 session = sf.create_snowpark_connection()
+
 # Load your dataset into a DataFrame
 refined_happiness = session.table("NEW_SNOWPARK.KRYS_RAW.RAW_HAPPINESS")
-refined_happiness.show()
+
 # TRANSFORMATIONS
 
 # Rename Columns
-
 def rename_columns(df):
-    renamed_df = refined_happiness.rename({
+    renamed_df = df.rename({
         '"Country name"': "Country",
         '"year"': "Year",
         '"Life Ladder"': "Life_Satisfaction",
@@ -37,7 +36,6 @@ def drop_generosity(df):
     df_without_generosity = df.drop("Generosity")
     return df_without_generosity
 
-
 # Check numeric values, no commas 
 def check_commas(columns, df):
     for column in columns:
@@ -47,14 +45,22 @@ def check_commas(columns, df):
     print("All numeric columns are properly formatted (no commas)")
 
 # Cast varchar to numeric
-numeric_columns = ["LifeSatisfaction", "EconomicProsperity", "SocialSupport",
-                       "HealthLifeExp", "Freedom", "CorruptionPercep",
-                       "PositiveEmotions", "NegativeEmotions"]
+numeric_columns = [
+    "Life_Satisfaction",
+    "Economic_Prosperity",
+    "Social_Support",
+    "Health_Life_Expectancy",
+    "Freedom",
+    "Corruption_Perception",
+    "Positive_Affect",
+    "Negative_Affect"
+]
 year_column = 'Year'
+
 def varchar_to_numeric(df):
     for column in numeric_columns:
-        df = df.with_column(column, F.col(column).cast(FloatType()))          #Cast to float
-    df = df.with_column(year_column, F.col(year_column).cast(IntegerType()))  #Cast to integer
+        df = df.with_column(column, F.col(column).cast(FloatType()))          # Cast to float
+    df = df.with_column(year_column, F.col(year_column).cast(IntegerType()))  # Cast to integer
     return df
 
 # Check null values
@@ -69,13 +75,9 @@ def count_nulls_per_column(df):
 # IMPUTATION BY AVERAGE METHOD
 def fill_nulls_by_country(df, columns_with_nulls):
     for column in columns_with_nulls:
-        #Create new df with AVG by country and by specific column
         country_avg_df = df.group_by("Country").agg(F.avg(F.col(column)).alias(f"{column}_avg"))
-        #Join the original df to new df 
         df = df.join(country_avg_df, "Country", "left")
-        #Fill null values with AVG
         df = df.with_column(column, F.coalesce(F.col(column), F.col(f"{column}_avg")))
-        #Deletes that column after using it
         df = df.drop(f"{column}_avg")
     return df
 
@@ -84,40 +86,41 @@ def replace_country_names(df):
     df = df.with_column(
         "Country",
         F.when(F.col("Country") == "Congo (Brazzaville)", "Republic of the Congo")
-        .when(F.col("Country") == "Congo (Kinshasa)", "Democratic Republic of the Congo")
-        .when(F.col("Country") == "Gambia", "The Gambia")
-        .when(F.col("Country") == "Hong Kong S.A.R. of China", "Hong Kong")
-        .when(F.col("Country") == "Myanmar", "Myanmar (Burma)")
-        .when(F.col("Country") == "Somaliland region", "Republic of Somaliland")
-        .when(F.col("Country") == "State of Palestine", "Palestine")
-        .when(F.col("Country") == "Taiwan Province of China", "Taiwan")
-        .otherwise(F.col("Country")))  #For other values, keep it that way
+         .when(F.col("Country") == "Congo (Kinshasa)", "Democratic Republic of the Congo")
+         .when(F.col("Country") == "Gambia", "The Gambia")
+         .when(F.col("Country") == "Hong Kong S.A.R. of China", "Hong Kong")
+         .when(F.col("Country") == "Myanmar", "Myanmar (Burma)")
+         .when(F.col("Country") == "Somaliland region", "Republic of Somaliland")
+         .when(F.col("Country") == "State of Palestine", "Palestine")
+         .when(F.col("Country") == "Taiwan Province of China", "Taiwan")
+         .otherwise(F.col("Country"))
+    )
     return df
 
-
 # TESTING FUNCTIONS ARE WORKING
-#null_rows1 = (numeric_df.count()) - (numeric_df.na.drop().count())
-#null_rows2 = (filled_df.count()) - (filled_df.na.drop().count())
-#print(f"Rows with null values BEFORE IMPUTATION: {null_rows1}")
-#print(f"Rows with null values AFTER IMPUTATION: {null_rows2}")
-#count_nulls_per_column(cleaned_df)
-
+# null_rows1 = (numeric_df.count()) - (numeric_df.na.drop().count())
+# null_rows2 = (filled_df.count()) - (filled_df.na.drop().count())
+# print(f"Rows with null values BEFORE IMPUTATION: {null_rows1}")
+# print(f"Rows with null values AFTER IMPUTATION: {null_rows2}")
+# count_nulls_per_column(cleaned_df)
 
 def refine_data(session: Session):
-    df = session.table('KRYS_RAW.RAW_HAPPINESS')
+    df = session.table('NEW_SNOWPARK.KRYS_RAW.RAW_HAPPINESS')   
+    df = rename_columns(df)                                   
     df_without_generosity = drop_generosity(df)
     check_commas(numeric_columns, df_without_generosity)
     numeric_df = varchar_to_numeric(df_without_generosity)
     count_nulls_per_column(numeric_df)
-    columns_with_nulls = ['EconomicProsperity', 'SocialSupport', 'HealthLifeExp', 
-                      'Freedom', 'CorruptionPercep', 
-                      'PositiveEmotions', 'NegativeEmotions']
+    columns_with_nulls = ['Economic_Prosperity', 'Social_Support', 'Health_Life_Expectancy', 
+                          'Freedom', 'Corruption_Perception', 
+                          'Positive_Affect', 'Negative_Affect']
     filled_df = fill_nulls_by_country(numeric_df, columns_with_nulls)
     cleaned_df = replace_country_names(filled_df)
-    schema_name = "KRYS_REFINED"  
-    table_name = "REFINED_WORLD_HAPPINESS"    
+    schema_name = "KRYS_REFINED"
+    table_name = "REFINED_WORLD_HAPPINESS"
     cleaned_df.write.mode("overwrite").save_as_table(f"{schema_name}.{table_name}")
-    print(f"DataFrame uploaded to table {table_name} on schema {schema_name}.") 
+    print(f"DataFrame uploaded to table {table_name} on schema {schema_name}.")
 
-
-
+# CALLING THE PIPELINE
+if __name__ == "__main__":
+    refine_data(session)

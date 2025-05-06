@@ -27,11 +27,11 @@ view_name_2010_2023 = "WORLD_HAPPINESS_2010_2023"         # VIEW 1
 view_name_average_df = "COUNTRY_AVERAGE_WORLD_HAPPINESS"  # VIEW 2
 
 def cleaned_data(session: Session):
-    cleaned_df = session.table('KRYS_REFINED.REFINED_WORLD_HAPPINESS')
+    cleaned_df = session.table('EDO_REFINED.REFINED_WORLD_HAPPINESS')
     df_2010_2023 = years_14(cleaned_df)
     average_df = group_by_country(df_2010_2023)
     session.use_database("NEW_SNOWPARK")
-    session.use_schema("KRYS_CURATED")
+    session.use_schema("EDO_CURATED")
     df_2010_2023.create_or_replace_view(view_name_2010_2023)
     average_df.create_or_replace_view(view_name_average_df)
     print(f"Views '{view_name_2010_2023}' and '{view_name_average_df}' successfully created.")

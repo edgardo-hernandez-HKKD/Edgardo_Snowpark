@@ -2,7 +2,7 @@
 
 ## Overview
 
-The goal is to analyze global happiness data from 2008 to 2024, focusing on trends before, during, and after the COVID-19 pandemic.  
+The goal is to analyze global happiness data from 2008 to 2024, focusing on trends before the COVID-19 pandemic.  
 We clean, transform, and create curated views using Snowflake and Snowpark.
 
 ---
